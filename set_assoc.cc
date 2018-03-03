@@ -9,21 +9,21 @@
 SetAssociativeCache::SetAssociativeCache(int64_t size, Memory& memory,
                                          Processor& processor, int ways)
 : Cache(size, memory, processor), way(ways),
-	tagBits(processor.getAddrSize()
-          - log2int(size / memory.getLineSize() / ways)
-          - memory.getLineBits()),
+  tagBits(processor.getAddrSize()
+        - log2int(size / memory.getLineSize() / ways)
+        - memory.getLineBits()),
   indexMask(size / memory.getLineSize() / way - 1),
-	tagArray((int) size / memory.getLineSize(),
-           log2int(ways) + 2, // lg(ways) for lru bits and 2 for valid and dirty
-           (int) tagBits),
-	dataArray(size / memory.getLineSize(), memory.getLineSize()),
+  tagArray((int) size / memory.getLineSize(),
+         log2int(ways) + 2, // lg(ways) for lru bits and 2 for valid and dirty
+         (int) tagBits),
+  dataArray(size / memory.getLineSize(), memory.getLineSize()),
   blocked(false),
   mshr({-1, 0, 0, nullptr})
 {
-	assert(ways > 0);
+  assert(ways > 0);
   assert(log2int(ways) + 2 <= 32);
   assert(ways <= size / memory.getLineSize());
-	// initialize lru
+  // initialize lru
   for (int i = 0; i < (int) size / memory.getLineSize(); i += way) {
     for (int j = 0; j < way; j++) {
       int lru = (way - 1 - j) << 2;
@@ -39,7 +39,7 @@ SetAssociativeCache::~SetAssociativeCache()
 }
 
 bool
-SetAssociativeCache::receiveRequest(uint64_t address, int size, 
+SetAssociativeCache::receiveRequest(uint64_t address, int size,
                                     const uint8_t* data, int request_id)
 {
   assert(size <= memory.getLineSize()); // within line size
