@@ -39,8 +39,8 @@ SetAssociativeCache::~SetAssociativeCache()
 }
 
 bool
-SetAssociativeCache::receiveRequest(uint64_t address, int size,
-																		const uint8_t* data, int request_id)
+SetAssociativeCache::receiveRequest(uint64_t address, int size, 
+                                    const uint8_t* data, int request_id)
 {
   assert(size <= memory.getLineSize()); // within line size
   // within address range
