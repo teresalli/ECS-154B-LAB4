@@ -18,7 +18,7 @@ SetAssociativeCache::SetAssociativeCache(int64_t size, Memory& memory,
            (int) tagBits),
 	dataArray(size / memory.getLineSize(), memory.getLineSize()),
   blocked(false),
-  mshr({-1, 0, 0, 0, nullptr})
+  mshr({-1, 0, 0, nullptr})
 {
 	assert(ways > 0);
   assert(log2int(ways) + 2 <= 32);
@@ -99,12 +99,8 @@ SetAssociativeCache::receiveRequest(uint64_t address, int size,
     // no need for req id since there is only one outstanding request.
     // We need to read whether the request is a read or write.
     sendMemRequest(address, memory.getLineSize(), nullptr, 0);
-    // set lru
-    setlru(address, linenum);
     // remember the CPU's request id
     mshr.savedId = request_id;
-    // remember the linenum
-    mshr.linenum = linenum;
     // Remember the address
     mshr.savedAddr = address;
     // Remember the data if it is a write.
@@ -123,8 +119,9 @@ SetAssociativeCache::receiveMemResponse(int request_id, const uint8_t* data)
   assert(data);
   
   int set = (int) getSetIndex(mshr.savedAddr);
-  int index = set * way + mshr.linenum;
-  
+  int linenum = findlru(mshr.savedAddr);
+  int index = set * way + linenum;
+  setlru(mshr.savedAddr, linenum);
   // Copy the data into the cache.
   uint8_t* line = dataArray.getLine(index);
   memcpy(line, data, memory.getLineSize());
@@ -157,7 +154,6 @@ SetAssociativeCache::receiveMemResponse(int request_id, const uint8_t* data)
   
   blocked = false;
   mshr.savedId = -1;
-  mshr.linenum = 0;
   mshr.savedAddr = 0;
   mshr.savedSize = 0;
   mshr.savedData = nullptr;

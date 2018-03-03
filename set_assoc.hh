@@ -78,9 +78,6 @@ class SetAssociativeCache: public Cache
         /// This is the current request_id that is blocking the cache.
         int savedId;
         
-        /// This is the currect linenum in the set
-        int linenum;
-
         /// The address for the blocking request.
         uint64_t savedAddr;
 
