@@ -32,7 +32,7 @@ Processor::sendRequest(Record &r)
     DPRINT("Sending request 0x" << std::hex << r.address
             << std::dec << ":" << r.size << " (" << r.requestId << ")");
     outstanding[r.requestId] = r;
-    if (cache->receiveRequest(r.address, r.size, r.data, r.requestId)) {
+    if (cache->receiveRequest(r.address, r.size, data, r.requestId)) {
         totalRequests++;
         trace.pop();
 
@@ -48,7 +48,6 @@ Processor::sendRequest(Record &r)
         // Remove the last thing we added to the outstanding list, it's not
         // outstanding.
         outstanding.erase(r.requestId);
-		delete [] r.data;
     }
 }
 
