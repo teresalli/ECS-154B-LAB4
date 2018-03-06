@@ -18,7 +18,7 @@ SetAssociativeCache::SetAssociativeCache(int64_t size, Memory& memory,
          (int) tagBits),
   dataArray(size / memory.getLineSize(), memory.getLineSize()),
   blocked(false),
-  mshr({-1, 0, 0, nullptr})
+  mshr({-1, 0, 0, 0, nullptr})
 {
   assert(ways > 0);
   assert(log2int(ways) + 2 <= 32);
@@ -83,26 +83,28 @@ SetAssociativeCache::receiveRequest(uint64_t address, int size,
       DPRINT("Dirty, writing back");
       // If the line is dirty, then we need to evict it.
       uint8_t* line = dataArray.getLine(index);
-      sendMemRequest(address, memory.getLineSize(), line, -1);
+      // Calculate the address of the writeback.
+      uint64_t wb_address =
+      tagArray.getTag(index) << (processor.getAddrSize() - tagBits);
+      wb_address |= (index << memory.getLineBits());
       // No response for writes, no need for valid request_id
-      // Mark the line as invalid
-      int lru = tagArray.getState(index) >> 2;
-      int state = (lru << 2) | Invalid;
-      tagArray.setState(index, state);
-    } else {
-      // Since it is not dirty, just invalidate the line.
-      int lru = tagArray.getState(index) >> 2;
-      int state = (lru << 2) | Invalid;
-      tagArray.setState(index, state);
+      sendMemRequest(wb_address, memory.getLineSize(), line, -1);
     }
+    
+    int lru = tagArray.getState(index) >> 2;
+    int state = (lru << 2) | Invalid;
+    tagArray.setState(index, state);
+    setlru(mshr.savedAddr, linenum);
     // Forward to memory and block the cache.
     // no need for req id since there is only one outstanding request.
     // We need to read whether the request is a read or write.
-    sendMemRequest(address, memory.getLineSize(), nullptr, 0);
+    uint64_t block_address = address & ~(memory.getLineSize() - 1);
+    sendMemRequest(block_address, memory.getLineSize(), nullptr, 0);
     // remember the CPU's request id
     mshr.savedId = request_id;
     // Remember the address
     mshr.savedAddr = address;
+    mshr.target = index;
     // Remember the data if it is a write.
     mshr.savedSize = size;
     mshr.savedData = data;
@@ -118,23 +120,19 @@ SetAssociativeCache::receiveMemResponse(int request_id, const uint8_t* data)
   assert(request_id == 0);
   assert(data);
   
-  int set = (int) getSetIndex(mshr.savedAddr);
-  int linenum = findlru(mshr.savedAddr);
-  int index = set * way + linenum;
-  setlru(mshr.savedAddr, linenum);
   // Copy the data into the cache.
-  uint8_t* line = dataArray.getLine(index);
+  uint8_t* line = dataArray.getLine(mshr.target);
   memcpy(line, data, memory.getLineSize());
   
-  assert((tagArray.getState(index) & statemask) == Invalid);
+  assert((tagArray.getState(mshr.target) & statemask) == Invalid);
   
   // Mark valid
-  int lru = tagArray.getState(index) >> 2;
+  int lru = tagArray.getState(mshr.target) >> 2;
   int state = (lru << 2) | Valid;
-  tagArray.setState(index, state);
+  tagArray.setState(mshr.target, state);
   
   // Set tag
-  tagArray.setTag(index, getTag(mshr.savedAddr));
+  tagArray.setTag(mshr.target, getTag(mshr.savedAddr));
   
   // Treat as a hit
   int block_offset = getBlockOffset(mshr.savedAddr);
@@ -144,9 +142,9 @@ SetAssociativeCache::receiveMemResponse(int request_id, const uint8_t* data)
     memcpy(&line[block_offset], mshr.savedData, mshr.savedSize);
     sendResponse(mshr.savedId, nullptr);
     // Mark dirty
-    lru = tagArray.getState(index) >> 2;
+    lru = tagArray.getState(mshr.target) >> 2;
     state = (lru << 2) | Dirty;
-    tagArray.setState(index, state);
+    tagArray.setState(mshr.target, state);
   } else {
     // This is a read so we need to return data
     sendResponse(mshr.savedId, &line[block_offset]);
@@ -155,6 +153,7 @@ SetAssociativeCache::receiveMemResponse(int request_id, const uint8_t* data)
   blocked = false;
   mshr.savedId = -1;
   mshr.savedAddr = 0;
+  mshr.target = 0;
   mshr.savedSize = 0;
   mshr.savedData = nullptr;
 }
@@ -175,8 +174,11 @@ void SetAssociativeCache::setlru(uint64_t address, int linenum)
   }
   
   index = set * way + linenum;
-  state = (tagArray.getState(index) & statemask);
-  state |= (0 << 2);
+  state = (tagArray.getState(index));
+  int s = state & statemask;
+  state = 0;
+  state <<= 2;
+  state |= s;
   tagArray.setState(index, state);
 }
 
