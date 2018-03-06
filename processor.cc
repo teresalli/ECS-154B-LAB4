@@ -1,11 +1,13 @@
 
 #include <iostream>
 
+#include "memory.hh"
 #include "processor.hh"
 #include "ticked_object.hh"
 #include "util.hh"
 
-Processor::Processor() : blocked(false), totalRequests(0)
+Processor::Processor() : cache(nullptr), memory(nullptr), blocked(false),
+    totalRequests(0)
 {
     createRecords();
     Record &r = trace.front();
@@ -32,7 +34,7 @@ Processor::sendRequest(Record &r)
     DPRINT("Sending request 0x" << std::hex << r.address
             << std::dec << ":" << r.size << " (" << r.requestId << ")");
     outstanding[r.requestId] = r;
-    if (cache->receiveRequest(r.address, r.size, r.data, r.requestId)) {
+    if (cache->receiveRequest(r.address, r.size, data, r.requestId)) {
         totalRequests++;
         trace.pop();
 
@@ -48,7 +50,6 @@ Processor::sendRequest(Record &r)
         // Remove the last thing we added to the outstanding list, it's not
         // outstanding.
         outstanding.erase(r.requestId);
-		delete [] r.data;
     }
 }
 
@@ -60,6 +61,7 @@ Processor::receiveResponse(int request_id, const uint8_t* data)
 
     auto it = outstanding.find(request_id);
     assert(it != outstanding.end());
+    checkData(it->second, data);
     if (it->second.write) {
         delete[] it->second.data;
     }
@@ -78,6 +80,17 @@ int
 Processor::getAddrSize()
 {
     return 32;
+}
+
+void
+Processor::checkData(Record &record, const uint8_t* cache_data)
+{
+    assert(memory);
+    if (record.write) {
+        memory->processorWrite(record.address, record.size, record.data);
+    } else {
+        memory->checkRead(record.address, record.size, cache_data);
+    }
 }
 
 void
