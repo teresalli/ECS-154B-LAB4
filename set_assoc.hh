@@ -52,42 +52,36 @@ class SetAssociativeCache: public Cache
 
   private:
     enum State {
-        Invalid=0,
-        Valid=1,
-        Invalid2=2,
-        Dirty=3 // Dirty implies valid
+      Invalid=0,
+      Valid=1,
+      Invalid2=2,
+      Dirty=3 // Dirty implies valid
     };
-    static const int statemask = 3;
-    static const int NOTHIT = -99;
-    int64_t getSetIndex(uint64_t address);
-    int getBlockOffset(uint64_t address);
-    uint64_t getTag(uint64_t address);
-    int hit(uint64_t address);
-    bool dirty(uint64_t address, int linenum);
-    int64_t getlru(uint64_t address, int linenum);
-    void setlru(uint64_t address, int linenum);
-    int findlru(uint64_t address);
+  
+  protected:
+    static const int statemask = 3; // 2 bits mask
+    static const int NOTHIT = -99; // indicate not hit
+    int64_t getSetIndex(uint64_t address); // get set
+    int getBlockOffset(uint64_t address); // get offset
+    uint64_t getTag(uint64_t address); // get tag
+    int hit(uint64_t address); // return hit index
+    bool dirty(uint64_t address, int linenum); // check linenum of set is dirty
+    int64_t getlru(uint64_t address, int linenum); // extract lru
+    void setlru(uint64_t address, int linenum); // reset lru
+    int findlru(uint64_t address); // find lru line index
     int way;
     int64_t tagBits;
     uint64_t indexMask;
     TagArray tagArray;
     SRAMArray dataArray;
-    bool blocked;
-
     struct MSHR {
-        /// This is the current request_id that is blocking the cache.
-        int savedId;
-        
-        /// The address for the blocking request.
-        uint64_t savedAddr;
-
-        /// This is the size of the original request. Needed for writes.
-        int savedSize;
-
-        /// This is the data that will be written after a miss
-        const uint8_t* savedData;
+      int savedId;
+      uint64_t savedAddr;
+      int target;
+      int savedSize;
+      const uint8_t* savedData;
     };
-
+    bool blocked;
     MSHR mshr;
 
 };
