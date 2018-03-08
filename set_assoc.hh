@@ -7,22 +7,22 @@
 
 class SetAssociativeCache: public Cache
 {
-  public:
+public:
     /**
-    * @size  the *total* size of the cache in bytes
-    * @memory the memory that is below this cache
-    * @processor the processor this cache is connected to
-    * @ways the number of ways in this set associative cache. If the number
-    *        of ways cannot be realized, this will cause an error
-    */
+     * @size  the *total* size of the cache in bytes
+     * @memory the memory that is below this cache
+     * @processor the processor this cache is connected to
+     * @ways the number of ways in this set associative cache. If the number
+     *        of ways cannot be realized, this will cause an error
+     */
     SetAssociativeCache(int64_t size, Memory& memory, Processor& processor,
                         int ways);
-
+    
     /**
      * Destructor
      */
     ~SetAssociativeCache() override;
-
+    
     /**
      * Called when the processors sends load or store request.
      * All requests can be assummed to be naturally aligned (e.g., a 4 byte
@@ -38,7 +38,7 @@ class SetAssociativeCache: public Cache
      */
     virtual bool receiveRequest(uint64_t address, int size, const uint8_t* data,
                                 int request_id) override;
-
+    
     /**
      * Called when memory id finished processing a request.
      * Data will always be the length of memory.getLineSize()
@@ -48,17 +48,16 @@ class SetAssociativeCache: public Cache
      *        NOTE: This pointer will be invalid when this function returns.
      */
     virtual void receiveMemResponse(int request_id, const uint8_t* data)
-        override;
-
-  private:
+    override;
+    
+protected:
     enum State {
-      Invalid=0,
-      Valid=1,
-      Invalid2=2,
-      Dirty=3 // Dirty implies valid
+        Invalid=0,
+        Valid=1,
+        Invalid2=2,
+        Dirty=3 // Dirty implies valid
     };
-  
-  protected:
+    
     static const int statemask = 3; // 2 bits mask
     static const int NOTHIT = -99; // indicate not hit
     int64_t getSetIndex(uint64_t address); // get set
@@ -74,16 +73,19 @@ class SetAssociativeCache: public Cache
     uint64_t indexMask;
     TagArray tagArray;
     SRAMArray dataArray;
+    
+private:
     struct MSHR {
-      int savedId;
-      uint64_t savedAddr;
-      int target;
-      int savedSize;
-      const uint8_t* savedData;
+        int savedId;
+        uint64_t savedAddr;
+        int target;
+        int savedSize;
+        const uint8_t* savedData;
     };
     bool blocked;
     MSHR mshr;
-
+    
 };
 
 #endif
+
