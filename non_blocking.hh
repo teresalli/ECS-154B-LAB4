@@ -57,19 +57,20 @@ private:
         uint64_t savedAddr;
         int savedSize;
         int savedId;
+        int target;
         const uint8_t* savedData;
     };
     
     struct MSHR {
-        int target; // line address
+        uint64_t blockAddr; // line address
         int issued;
         queue<Entry> entry;
     };
     MSHR* mshr;
     int numMshr;
     bool stall;
-    void copyDataIntoCache(MSHR &mshr, Entry entry, const uint8_t* data);
-    int searchMSHR(int blockindex);
+    void copyDataIntoCache(Entry entry, const uint8_t* data);
+    int searchMSHR(uint64_t blockAddr);
     int findFreeMSHR();
     bool fullMSHR();
 };

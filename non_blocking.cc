@@ -1,6 +1,6 @@
 
 #include <cassert>
-
+#include <cstring>
 #include "non_blocking.hh"
 #include "memory.hh"
 #include "processor.hh"
@@ -31,7 +31,7 @@ NonBlockingCache::receiveRequest(uint64_t address, int size,
     // within address range
     assert(address < ((uint64_t)1 << processor.getAddrSize()));
     assert((address & (size - 1)) == 0); // naturally aligned
-    
+
     if (stall) {
         DPRINT("Cache is blocked!");
         // Cache is currently blocked, so it cannot receive a new request
@@ -40,15 +40,15 @@ NonBlockingCache::receiveRequest(uint64_t address, int size,
     int set = (int) getSetIndex(address);
     int linenum = hit(address); // get the hit linenum
     int index= set * way + linenum;
-    
+
     if (linenum != NOTHIT) { // hit
         DPRINT("Hit in cache");
         // get a pointer to the data
         uint8_t* line = dataArray.getLine(index);
-        cout << index << endl;
-        
+        //cout << index << endl;
+
         int block_offset = getBlockOffset(address);
-        
+
         if (data) {
             // if this is a write, copy the data into the cache.
             memcpy(&line[block_offset], data, size);
@@ -68,7 +68,7 @@ NonBlockingCache::receiveRequest(uint64_t address, int size,
         linenum = findlru(address);
         index = set * way + linenum;
         DPRINT("Miss in cache " << (tagArray.getState(index) & statemask));
-        cout << index << endl;
+        //cout << index << endl;
         if (dirty(address, linenum)) {
             DPRINT("Dirty, writing back");
             // If the line is dirty, then we need to evict it.
@@ -80,27 +80,29 @@ NonBlockingCache::receiveRequest(uint64_t address, int size,
             // No response for writes, no need for valid request_id
             sendMemRequest(wb_address, memory.getLineSize(), line, -1);
         }
-        
+
         int lru = tagArray.getState(index) >> 2;
         int state = (lru << 2) | Invalid;
         tagArray.setState(index, state);
         setlru(address, linenum);
         // Forward to memory and block the cache.
-        // no need for req id since there is only one outstanding request.
+        // need for req id since there are multiple outstanding request.
         // We need to read whether the request is a read or write.
         uint64_t block_address = address & ~(memory.getLineSize() - 1);
-        sendMemRequest(block_address, memory.getLineSize(), nullptr, 0);
+
+
         // remember the CPU's request id
-        
+
         /* deal with mshrs */
         int mshrindex = 0;
 
-        mshrindex = searchMSHR(index);
+        mshrindex = searchMSHR(block_address);
         if (mshrindex != numMshr) // found
         {
             Entry newEntry;
             newEntry.savedAddr = address;
             newEntry.savedSize = size;
+            newEntry.target = index;
             newEntry.savedId = request_id;
             newEntry.savedData = data;
             mshr[mshrindex].entry.push(newEntry);
@@ -108,21 +110,26 @@ NonBlockingCache::receiveRequest(uint64_t address, int size,
         }
         else // not found
         {
-            mshrindex = findFreeMSHR();
-            mshr[mshrindex].issued = 1;
-            mshr[mshrindex].target = index;
-            Entry newEntry;
-            newEntry.savedAddr = address;
-            newEntry.savedSize = size;
-            newEntry.savedId = request_id;
-            newEntry.savedData = data;
-            mshr[mshrindex].entry.push(newEntry);
-            
-            if (fullMSHR())
+            if (fullMSHR()) // full
                 stall = true;
+            else
+            {
+                // only send mem request if not found block address in mshrs
+                sendMemRequest(block_address, memory.getLineSize(), nullptr, request_id);
+                mshrindex = findFreeMSHR();
+                mshr[mshrindex].issued = 1;
+                mshr[mshrindex].blockAddr = block_address;
+                Entry newEntry;
+                newEntry.savedAddr = address;
+                newEntry.savedSize = size;
+                newEntry.target = index;
+                newEntry.savedId = request_id;
+                newEntry.savedData = data;
+                mshr[mshrindex].entry.push(newEntry);
+            }
         }
-        
-        
+
+
     }
     return true;
 }
@@ -130,58 +137,88 @@ NonBlockingCache::receiveRequest(uint64_t address, int size,
 void
 NonBlockingCache::receiveMemResponse(int request_id, const uint8_t* data)
 {
-    assert(request_id == 0);
     assert(data);
-    
+
     for (int i = 0; i < numMshr; i++)
     {
-        while (!mshr[i].entry.empty())
-        {
-            Entry entry = mshr[i].entry.front();
-            mshr[i].entry.pop();
-            copyDataIntoCache(mshr[i], entry, data);
+        if (mshr[i].issued) {
+            queue<Entry> e = mshr[i].entry;
+            Entry entry;
+            while (!e.empty())
+            {
+                entry = e.front();
+                e.pop();
+                if (entry.savedId == request_id)
+                {
+                    while (mshr[i].issued)
+                    {
+                        entry = mshr[i].entry.front();
+                        mshr[i].entry.pop();
+                        copyDataIntoCache(entry, data);
+                        mshr[i].issued--;
+                    }
+                    break;
+                }
+            }
         }
+
+
     }
-    
+
     stall = false;
 }
 
 void
-NonBlockingCache::copyDataIntoCache(MSHR &mshr, Entry entry, const uint8_t* data)
+NonBlockingCache::copyDataIntoCache(Entry entry, const uint8_t* data)
 {
+    if (dirty(entry.savedAddr, entry.target - getSetIndex(entry.savedAddr) * way))
+    {
+        DPRINT("Dirty, writing back");
+        // If the line is dirty, then we need to evict it.
+        uint8_t* line = dataArray.getLine(entry.target);
+        // Calculate the address of the writeback.
+        uint64_t wb_address =
+        tagArray.getTag(entry.target) << (processor.getAddrSize() - tagBits);
+        wb_address |= (getSetIndex(entry.savedAddr) << memory.getLineBits());
+        // No response for writes, no need for valid request_id
+        sendMemRequest(wb_address, memory.getLineSize(), line, -1);
+    }
+
+    int lru = tagArray.getState(entry.target) >> 2;
+    int state = (lru << 2) | Invalid;
+    tagArray.setState(entry.target, state);
+    //setlru(address, linenum);
 
     // Copy the data into the cache.
-    uint8_t* line = dataArray.getLine(mshr.target);
+    uint8_t* line = dataArray.getLine(entry.target);
     memcpy(line, data, memory.getLineSize());
-    
-    assert((tagArray.getState(mshr.target) & statemask) == Invalid);
-    
+
+    assert((tagArray.getState(entry.target) & statemask) == Invalid);
+
     // Mark valid
-    int lru = tagArray.getState(mshr.target) >> 2;
-    int state = (lru << 2) | Valid;
-    tagArray.setState(mshr.target, state);
-    
+    lru = tagArray.getState(entry.target) >> 2;
+    state = (lru << 2) | Valid;
+    tagArray.setState(entry.target, state);
+
     // Set tag
-    tagArray.setTag(mshr.target, getTag(entry.savedAddr));
-    
+    tagArray.setTag(entry.target, getTag(entry.savedAddr));
+
     // Treat as a hit
     int block_offset = getBlockOffset(entry.savedAddr);
-    
+
     if (entry.savedData) {
         // if this is a write, copy the data into the cache.
         memcpy(&line[block_offset], entry.savedData, entry.savedSize);
         sendResponse(entry.savedId, nullptr);
         // Mark dirty
-        lru = tagArray.getState(mshr.target) >> 2;
+        lru = tagArray.getState(entry.target) >> 2;
         state = (lru << 2) | Dirty;
-        tagArray.setState(mshr.target, state);
+        tagArray.setState(entry.target, state);
     } else {
         // This is a read so we need to return data
         sendResponse(entry.savedId, &line[block_offset]);
     }
-    
-    mshr.target = 0;
-    mshr.issued--;
+
 }
 
 int
@@ -198,12 +235,12 @@ NonBlockingCache::findFreeMSHR()
 }
 
 int
-NonBlockingCache::searchMSHR(int blockindex)
+NonBlockingCache::searchMSHR(uint64_t blockAddr)
 {
     int index;
     for (index = 0; index < numMshr; index++)
     {
-        if (mshr[index].issued && mshr[index].target == blockindex) {
+        if (mshr[index].issued && mshr[index].blockAddr == blockAddr) {
             break;
         }
     }
@@ -221,4 +258,3 @@ NonBlockingCache::fullMSHR()
 
     return false;
 }
-

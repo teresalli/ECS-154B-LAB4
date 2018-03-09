@@ -17,12 +17,12 @@ public:
      */
     SetAssociativeCache(int64_t size, Memory& memory, Processor& processor,
                         int ways);
-    
+
     /**
      * Destructor
      */
     ~SetAssociativeCache() override;
-    
+
     /**
      * Called when the processors sends load or store request.
      * All requests can be assummed to be naturally aligned (e.g., a 4 byte
@@ -38,7 +38,7 @@ public:
      */
     virtual bool receiveRequest(uint64_t address, int size, const uint8_t* data,
                                 int request_id) override;
-    
+
     /**
      * Called when memory id finished processing a request.
      * Data will always be the length of memory.getLineSize()
@@ -49,7 +49,7 @@ public:
      */
     virtual void receiveMemResponse(int request_id, const uint8_t* data)
     override;
-    
+
 protected:
     enum State {
         Invalid=0,
@@ -57,7 +57,7 @@ protected:
         Invalid2=2,
         Dirty=3 // Dirty implies valid
     };
-    
+
     static const int statemask = 3; // 2 bits mask
     static const int NOTHIT = -99; // indicate not hit
     int64_t getSetIndex(uint64_t address); // get set
@@ -73,7 +73,7 @@ protected:
     uint64_t indexMask;
     TagArray tagArray;
     SRAMArray dataArray;
-    
+
 private:
     struct MSHR {
         int savedId;
@@ -84,8 +84,7 @@ private:
     };
     bool blocked;
     MSHR mshr;
-    
+
 };
 
 #endif
-
