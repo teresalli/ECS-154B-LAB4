@@ -1,5 +1,5 @@
 CXX := g++
-CXXFLAGS := -std=gnu++11
+CXXFLAGS := -std=gnu++11 -Wall
 
 ifneq ($(D),)
 CXXFLAGS += -g -DDEBUG
@@ -14,6 +14,7 @@ objs := \
 	memory.o \
 	non_blocking.o \
 	processor.o \
+	record_store.o \
 	set_assoc.o \
 	sram_array.o \
 	tag_array.o \
@@ -33,5 +34,6 @@ cache_simulator: $(objs)
 
 clean:
 	@echo "CLEAN	$(shell pwd)"
-	@rm -f cache_simulator $(objs) $(deps)
+	@rm -f $(objs) $(deps)
 
+.PHONY: all clean
