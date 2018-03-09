@@ -51,13 +51,6 @@ public:
     override;
 
 protected:
-    enum State {
-        Invalid=0,
-        Valid=1,
-        Invalid2=2,
-        Dirty=3 // Dirty implies valid
-    };
-
     static const int statemask = 3; // 2 bits mask
     static const int NOTHIT = -99; // indicate not hit
     int64_t getSetIndex(uint64_t address); // get set
@@ -75,6 +68,13 @@ protected:
     SRAMArray dataArray;
 
 private:
+    enum State {
+        Invalid=0,
+        Valid=1,
+        Invalid2=2,
+        Dirty=3 // Dirty implies valid
+    };
+    
     struct MSHR {
         int savedId;
         uint64_t savedAddr;

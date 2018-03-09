@@ -84,7 +84,7 @@ NonBlockingCache::receiveRequest(uint64_t address, int size,
         int lru = tagArray.getState(index) >> 2;
         int state = (lru << 2) | Invalid;
         tagArray.setState(index, state);
-        setlru(address, linenum);
+        //setlru(address, linenum);
         // Forward to memory and block the cache.
         // need for req id since there are multiple outstanding request.
         // We need to read whether the request is a read or write.
@@ -187,7 +187,7 @@ NonBlockingCache::copyDataIntoCache(Entry entry, const uint8_t* data)
     int lru = tagArray.getState(entry.target) >> 2;
     int state = (lru << 2) | Invalid;
     tagArray.setState(entry.target, state);
-    //setlru(address, linenum);
+    setlru(entry.savedAddr, entry.target - getSetIndex(entry.savedAddr) * way);
 
     // Copy the data into the cache.
     uint8_t* line = dataArray.getLine(entry.target);
@@ -197,7 +197,7 @@ NonBlockingCache::copyDataIntoCache(Entry entry, const uint8_t* data)
 
     // Mark valid
     lru = tagArray.getState(entry.target) >> 2;
-    state = (lru << 2) | Valid;
+    state = (lru << 2) | Clean;
     tagArray.setState(entry.target, state);
 
     // Set tag

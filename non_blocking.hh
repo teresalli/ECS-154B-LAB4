@@ -53,6 +53,12 @@ public:
     void receiveMemResponse(int request_id, const uint8_t* data) override;
     
 private:
+    enum State {
+        Invalid=0,
+        Clean=1,
+        Dirty=3 // Dirty implies valid
+    };
+    
     struct Entry {
         uint64_t savedAddr;
         int savedSize;
