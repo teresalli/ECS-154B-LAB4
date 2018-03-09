@@ -59,23 +59,19 @@ private:
         Dirty=3 // Dirty implies valid
     };
     
-    struct Entry {
+    struct MSHR {
+        uint64_t blockAddr; // line address
+        int issued;
         uint64_t savedAddr;
         int savedSize;
         int savedId;
         int target;
         const uint8_t* savedData;
     };
-    
-    struct MSHR {
-        uint64_t blockAddr; // line address
-        int issued;
-        queue<Entry> entry;
-    };
     MSHR* mshr;
     int numMshr;
     bool stall;
-    void copyDataIntoCache(Entry entry, const uint8_t* data);
+    void copyDataIntoCache(MSHR mshr, const uint8_t* data);
     int searchMSHR(uint64_t blockAddr);
     int findFreeMSHR();
     bool fullMSHR();
