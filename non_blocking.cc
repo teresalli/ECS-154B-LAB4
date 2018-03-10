@@ -149,9 +149,18 @@ NonBlockingCache::copyDataIntoCache(MSHR mshr, const uint8_t* data)
         sendMemRequest(wb_address, memory.getLineSize(), line, -1);
     }
     
-    // clean
+    // clean -> invalidate
     int lru = tagArray.getState(mshr.target) >> 2;
     int state = (lru << 2) | Invalid;
+    tagArray.setState(mshr.target, state);
+    setlru(mshr.savedAddr, mshr.target - getSetIndex(mshr.savedAddr) * way);
+    
+    // Set tag
+    tagArray.setTag(mshr.target, getTag(mshr.savedAddr));
+    
+    // transit
+    lru = tagArray.getState(mshr.target) >> 2;
+    state = (lru << 2) | Transit;
     tagArray.setState(mshr.target, state);
     setlru(mshr.savedAddr, mshr.target - getSetIndex(mshr.savedAddr) * way);
 
@@ -159,11 +168,8 @@ NonBlockingCache::copyDataIntoCache(MSHR mshr, const uint8_t* data)
     uint8_t* line = dataArray.getLine(mshr.target);
     memcpy(line, data, memory.getLineSize());
 
-    // invalid at this point
-    assert((tagArray.getState(mshr.target) & statemask) == Invalid);
-
-    // Set tag
-    tagArray.setTag(mshr.target, getTag(mshr.savedAddr));
+    // in transit at this point
+    assert((tagArray.getState(mshr.target) & statemask) == Transit);
 
     // Treat as a hit
     int block_offset = getBlockOffset(mshr.savedAddr);

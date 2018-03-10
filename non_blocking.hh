@@ -54,6 +54,7 @@ public:
 private:
     enum State {
         Invalid=0,
+        Transit=1,
         Clean=2,
         Dirty=3 // Dirty implies valid
     };

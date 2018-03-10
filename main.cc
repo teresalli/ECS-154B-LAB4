@@ -10,14 +10,14 @@
 
 int main(int argc, char *argv[])
 {
-    const char* recordFile = "simple.txt";
+    const char* recordFile = "test.txt";
     if (argc == 2) {
         recordFile = argv[1];
     } else if (argc > 2) {
         std::cout << "Usage: cache_simulator [records file]" << std::endl;
     }
 
-    Processor p;
+    Processor p(32);
     Memory m(8);
     RecordStore records(recordFile);
     if (!records.loadRecords()) {
@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
     p.setRecords(&records);
     //DirectMappedCache c(1 << 10, m, p);
     //SetAssociativeCache s(1 << 10, m, p, 8);
-    NonBlockingCache n(1 << 10, m, p, 4, 4);
+    NonBlockingCache n(1 << 10, m, p, 4, 8);
     p.scheduleForSimulation();
 
     std::cout << "Running simulation" << std::endl;
