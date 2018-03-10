@@ -1,0 +1,4 @@
+Shiqi Li, Melody Chang
+We used LRU for set associate cache so there is a limitation. We can only handle up to 2^30-way cache.
+It is difficult to understand all the provided parts and to understand how non blocking cache works.
+Everything works.
