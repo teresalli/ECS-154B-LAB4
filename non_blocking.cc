@@ -135,6 +135,7 @@ NonBlockingCache::receiveMemResponse(int request_id, const uint8_t* data)
 void
 NonBlockingCache::copyDataIntoCache(MSHR mshr, const uint8_t* data)
 {
+    // dirty
     if (dirty(mshr.savedAddr, mshr.target - getSetIndex(mshr.savedAddr) * way))
     {
         DPRINT("Dirty, writing back");
@@ -147,7 +148,8 @@ NonBlockingCache::copyDataIntoCache(MSHR mshr, const uint8_t* data)
         // No response for writes, no need for valid request_id
         sendMemRequest(wb_address, memory.getLineSize(), line, -1);
     }
-
+    
+    // clean
     int lru = tagArray.getState(mshr.target) >> 2;
     int state = (lru << 2) | Invalid;
     tagArray.setState(mshr.target, state);
@@ -157,6 +159,7 @@ NonBlockingCache::copyDataIntoCache(MSHR mshr, const uint8_t* data)
     uint8_t* line = dataArray.getLine(mshr.target);
     memcpy(line, data, memory.getLineSize());
 
+    // invalid at this point
     assert((tagArray.getState(mshr.target) & statemask) == Invalid);
 
     // Set tag
@@ -165,7 +168,7 @@ NonBlockingCache::copyDataIntoCache(MSHR mshr, const uint8_t* data)
     // Treat as a hit
     int block_offset = getBlockOffset(mshr.savedAddr);
 
-    if (mshr.savedData)
+    if (mshr.savedData) // if write
     {
         // if this is a write, copy the data into the cache.
         memcpy(&line[block_offset], mshr.savedData, mshr.savedSize);
@@ -175,7 +178,9 @@ NonBlockingCache::copyDataIntoCache(MSHR mshr, const uint8_t* data)
         lru = tagArray.getState(mshr.target) >> 2;
         state = (lru << 2) | Dirty;
         tagArray.setState(mshr.target, state);
-    } else {
+    }
+    else // if load
+    {
         // This is a read so we need to return data
         sendResponse(mshr.savedId, &line[block_offset]);
         
