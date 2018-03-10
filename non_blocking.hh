@@ -1,7 +1,6 @@
 #ifndef CSIM_NON_BLOCKING_H
 #define CSIM_NON_BLOCKING_H
 
-#include <queue>
 #include "set_assoc.hh"
 #include "tag_array.hh"
 #include "sram_array.hh"
@@ -55,7 +54,7 @@ public:
 private:
     enum State {
         Invalid=0,
-        Clean=1,
+        Clean=2,
         Dirty=3 // Dirty implies valid
     };
     

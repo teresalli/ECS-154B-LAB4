@@ -68,30 +68,12 @@ NonBlockingCache::receiveRequest(uint64_t address, int size,
         linenum = findlru(address);
         index = set * way + linenum;
         DPRINT("Miss in cache " << (tagArray.getState(index) & statemask));
-        //cout << index << endl;
-        if (dirty(address, linenum)) {
-            DPRINT("Dirty, writing back");
-            // If the line is dirty, then we need to evict it.
-            uint8_t* line = dataArray.getLine(index);
-            // Calculate the address of the writeback.
-            uint64_t wb_address =
-            tagArray.getTag(index) << (processor.getAddrSize() - tagBits);
-            wb_address |= (set << memory.getLineBits());
-            // No response for writes, no need for valid request_id
-            sendMemRequest(wb_address, memory.getLineSize(), line, -1);
-        }
 
-        int lru = tagArray.getState(index) >> 2;
-        int state = (lru << 2) | Invalid;
-        tagArray.setState(index, state);
-        //setlru(address, linenum);
         // Forward to memory and block the cache.
         // need for req id since there are multiple outstanding request.
         // We need to read whether the request is a read or write.
         uint64_t block_address = address & ~(memory.getLineSize() - 1);
 
-
-        // remember the CPU's request id
 
         /* deal with mshrs */
         int mshrindex = 0;
@@ -177,21 +159,18 @@ NonBlockingCache::copyDataIntoCache(MSHR mshr, const uint8_t* data)
 
     assert((tagArray.getState(mshr.target) & statemask) == Invalid);
 
-    // Mark valid
-    lru = tagArray.getState(mshr.target) >> 2;
-    state = (lru << 2) | Clean;
-    tagArray.setState(mshr.target, state);
-
     // Set tag
     tagArray.setTag(mshr.target, getTag(mshr.savedAddr));
 
     // Treat as a hit
     int block_offset = getBlockOffset(mshr.savedAddr);
 
-    if (mshr.savedData) {
+    if (mshr.savedData)
+    {
         // if this is a write, copy the data into the cache.
         memcpy(&line[block_offset], mshr.savedData, mshr.savedSize);
         sendResponse(mshr.savedId, nullptr);
+        
         // Mark dirty
         lru = tagArray.getState(mshr.target) >> 2;
         state = (lru << 2) | Dirty;
@@ -199,6 +178,11 @@ NonBlockingCache::copyDataIntoCache(MSHR mshr, const uint8_t* data)
     } else {
         // This is a read so we need to return data
         sendResponse(mshr.savedId, &line[block_offset]);
+        
+        // Mark Clean
+        lru = tagArray.getState(mshr.target) >> 2;
+        state = (lru << 2) | Clean;
+        tagArray.setState(mshr.target, state);
     }
 
 }
