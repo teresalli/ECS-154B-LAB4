@@ -10,7 +10,7 @@
 
 int main(int argc, char *argv[])
 {
-    const char* recordFile = "test.txt";
+    const char* recordFile = "test2.txt";
     if (argc == 2) {
         recordFile = argv[1];
     } else if (argc > 2) {
@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
     p.setRecords(&records);
     //DirectMappedCache c(1 << 10, m, p);
     //SetAssociativeCache s(1 << 10, m, p, 8);
-    NonBlockingCache n(1 << 10, m, p, 4, 8);
+    NonBlockingCache n(1 << 10, m, p, 8, 4);
     p.scheduleForSimulation();
 
     std::cout << "Running simulation" << std::endl;
